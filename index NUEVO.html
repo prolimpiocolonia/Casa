@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Reloj Casa</title>
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Reloj Casa">
+<script>
+  var MODO_REP = new URLSearchParams(location.search).get('modo') === 'reportes';
+  document.write('<link rel="manifest" href="' + (MODO_REP ? 'manifest-reportes.json' : 'manifest.json') + '">');
+  if (MODO_REP) document.title = 'Reportes Casa';
+</script>
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root{--verde:#0f766e;--verde2:#14b8a6;--fondo:#f4f7f6;--texto:#1f2937;--gris:#6b7280;--rojo:#dc2626}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--fondo);color:var(--texto)}
+  .pantalla{display:none;min-height:100vh;padding:20px;max-width:560px;margin:0 auto}
+  .pantalla.activa{display:block}
+  h1{margin:0;font-size:22px;color:var(--verde)}
+  .reloj{font-size:56px;font-weight:700;text-align:center;margin:10px 0 0;letter-spacing:1px}
+  .fecha{text-align:center;color:var(--gris);margin-bottom:14px}
+  .fecha::first-letter{text-transform:uppercase}
+  .camara{position:relative;width:100%;max-width:300px;aspect-ratio:4/3;margin:0 auto 14px;border-radius:16px;overflow:hidden;background:#111}
+  .camara video,.camara canvas{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .camara canvas{position:absolute;inset:0;display:none}
+  .camara .aviso{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ddd;font-size:14px;text-align:center;padding:12px}
+  .pin{display:flex;justify-content:center;gap:14px;margin:6px 0 14px}
+  .pin span{width:18px;height:18px;border-radius:50%;border:2px solid var(--verde)}
+  .pin span.lleno{background:var(--verde)}
+  .teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:320px;margin:0 auto}
+  .teclado button{font-size:26px;padding:16px 0;border:none;border-radius:14px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12);color:var(--texto)}
+  .teclado button:active{background:#e6f4f1}
+  .teclado .acc{font-size:16px;color:var(--gris)}
+  .msg{min-height:26px;text-align:center;font-weight:600;margin-top:12px}
+  .msg.error{color:var(--rojo)}
+  .link{display:block;margin:22px auto 0;background:none;border:none;color:var(--gris);font-size:14px;text-decoration:underline}
+  .overlay{position:fixed;inset:0;background:rgba(15,118,110,.96);color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;z-index:10}
+  .overlay.mostrar{display:flex}
+  .overlay img{width:180px;height:135px;object-fit:cover;border-radius:12px;border:3px solid #fff;margin-bottom:16px;transform:scaleX(-1)}
+  .overlay .grande{font-size:34px;font-weight:700}
+  .overlay .chico{font-size:22px;margin-top:6px}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:20;padding:20px}
+  .modal.mostrar{display:flex}
+  .caja{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:340px}
+  .caja h2{margin:0 0 12px;font-size:18px}
+  select{width:100%;font-size:17px;padding:12px;border:1px solid #d1d5db;border-radius:10px;margin-bottom:12px;background:#fff}
+  input{width:100%;font-size:17px;padding:12px;border:1px solid #d1d5db;border-radius:10px;margin-bottom:12px}
+  .btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:16px;font-weight:600;background:var(--verde);color:#fff}
+  .btn.sec{background:#e5e7eb;color:var(--texto);margin-top:8px}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .top button{background:none;border:none;color:var(--verde);font-size:15px;font-weight:600}
+  .fila{display:flex;gap:8px;margin-bottom:14px}
+  .fila input{margin:0}
+  .fila .btn{width:auto;padding:0 18px}
+  .tarjeta{background:#fff;border-radius:14px;padding:14px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .tarjeta h3{margin:0 0 2px;font-size:18px}
+  .tarjeta .tipo{color:var(--gris);font-size:13px;margin-bottom:10px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:12px}
+  .kpi{background:var(--fondo);border-radius:10px;padding:8px;text-align:center}
+  .kpi b{display:block;font-size:20px;color:var(--verde)}
+  .kpi span{font-size:12px;color:var(--gris)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 4px;border-bottom:1px solid #eee;vertical-align:top}
+  th{color:var(--gris);font-weight:600}
+  td.nota{color:var(--rojo);font-size:12px}
+  tr.falta td{background:#fef2f2}
+  .cargando{text-align:center;color:var(--gris);padding:20px}
+</style>
+</head>
+<body>
+
+<!-- ============ PANTALLA MARCAR ============ -->
+<section id="pMarcar" class="pantalla activa">
+  <h1>Reloj Casa</h1>
+  <div class="reloj" id="reloj">--:--</div>
+  <div class="fecha" id="fecha"></div>
+
+  <div class="camara">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div class="aviso" id="avisoCam">Activando cámara…</div>
+  </div>
+
+  <div class="pin" id="pinPuntos"><span></span><span></span><span></span><span></span></div>
+  <div class="teclado" id="teclado">
+    <button>1</button><button>2</button><button>3</button>
+    <button>4</button><button>5</button><button>6</button>
+    <button>7</button><button>8</button><button>9</button>
+    <button class="acc" data-acc="borrar">Borrar</button><button>0</button><button class="acc" data-acc="limpiar">Limpiar</button>
+  </div>
+  <div class="msg" id="msg"></div>
+  <button class="link" id="irReportes">Reportes</button>
+</section>
+
+<!-- ============ PANTALLA REPORTES ============ -->
+<section id="pReportes" class="pantalla">
+  <div class="top">
+    <h1>Reportes</h1>
+    <button id="volver">← Volver a marcar</button>
+  </div>
+  <div class="fila">
+    <input type="month" id="mes">
+    <button class="btn" id="verReporte">Ver</button>
+  </div>
+  <button class="btn sec" id="abrirAgregar" style="margin:0 0 14px">+ Agregar marca</button>
+  <div id="reporte"></div>
+</section>
+
+<!-- Confirmación de marca -->
+<div class="overlay" id="overlay">
+  <img id="foto" alt="">
+  <div class="grande" id="ovNombre"></div>
+  <div class="chico" id="ovDetalle"></div>
+</div>
+
+<!-- Contraseña -->
+<div class="modal" id="modalClave">
+  <div class="caja">
+    <h2>Contraseña de reportes</h2>
+    <input type="password" id="clave" placeholder="Contraseña" autocomplete="current-password">
+    <div class="msg error" id="msgClave" style="margin:0 0 10px"></div>
+    <button class="btn" id="entrar">Entrar</button>
+    <button class="btn sec" id="cancelar">Cancelar</button>
+  </div>
+</div>
+
+<!-- Agregar marca a mano -->
+<div class="modal" id="modalAgregar">
+  <div class="caja">
+    <h2>Agregar marca</h2>
+    <select id="amNombre"></select>
+    <input type="date" id="amFecha">
+    <input type="time" id="amHora">
+    <select id="amTipo"><option>Entrada</option><option>Salida</option></select>
+    <div class="msg error" id="msgAgregar" style="margin:0 0 10px"></div>
+    <button class="btn" id="guardarMarca">Guardar</button>
+    <button class="btn sec" id="cancelarAgregar">Cancelar</button>
+  </div>
+</div>
+
+<script>
+/* ======== PEGAR ACÁ LA URL DE LA APLICACIÓN WEB DE APPS SCRIPT ======== */
+const API_URL = 'https://script.google.com/macros/s/AKfycbxpuYkZIhWR38mpIZCF3_0p6cC8G5IxwBJV4B8HOTyHS-OS-rEd9tyXK2iOuS92ATq5/exec';
+/* ====================================================================== */
+
+const $ = id => document.getElementById(id);
+let pin = '', enviando = false, stream = null, clave = '';
+
+/* ---- Reloj ---- */
+function tic(){
+  const d = new Date();
+  $('reloj').textContent = d.toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit',hour12:false});
+  $('fecha').textContent = d.toLocaleDateString('es-UY',{weekday:'long',day:'numeric',month:'long'});
+}
+tic(); setInterval(tic, 1000);
+
+/* ---- Cámara (solo se muestra, no se guarda) ---- */
+async function prenderCamara(){
+  if (stream) return;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+    $('video').srcObject = stream;
+    $('avisoCam').style.display = 'none';
+  }catch(e){
+    $('avisoCam').textContent = 'No se pudo activar la cámara. Revisá los permisos del navegador.';
+  }
+}
+function apagarCamara(){
+  if (stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; }
+}
+function sacarFoto(){
+  const v = $('video'), c = $('canvas');
+  if (!stream || !v.videoWidth) return '';
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext('2d').drawImage(v,0,0);
+  return c.toDataURL('image/jpeg',0.6); // queda solo en pantalla
+}
+if (!MODO_REP) prenderCamara();
+document.addEventListener('visibilitychange',()=>{
+  if (document.hidden) apagarCamara();
+  else if (!MODO_REP && $('pMarcar').classList.contains('activa')) prenderCamara();
+});
+
+/* Mantener la pantalla prendida en la tablet (si el navegador lo permite) */
+async function mantenerPrendida(){ try{ if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); }catch(e){} }
+mantenerPrendida(); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) mantenerPrendida(); });
+
+/* ---- PIN ---- */
+function pintarPin(){
+  [...$('pinPuntos').children].forEach((s,i)=>s.classList.toggle('lleno', i < pin.length));
+}
+$('teclado').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if (!b || enviando) return;
+  const acc = b.dataset.acc;
+  if (acc === 'borrar') pin = pin.slice(0,-1);
+  else if (acc === 'limpiar') pin = '';
+  else if (pin.length < 4) pin += b.textContent;
+  $('msg').textContent = ''; $('msg').className = 'msg';
+  pintarPin();
+  if (pin.length === 4) enviarMarca();
+});
+
+async function api(datos){
+  const r = await fetch(API_URL,{method:'POST',body:JSON.stringify(datos)});
+  return r.json();
+}
+
+async function enviarMarca(){
+  enviando = true;
+  const foto = sacarFoto();
+  $('msg').textContent = 'Registrando…'; $('msg').className = 'msg';
+  try{
+    const r = await api({accion:'marcar',pin});
+    if (r.ok){
+      $('msg').textContent = '';
+      mostrarConfirmacion(r, foto);
+    }else{
+      $('msg').textContent = r.error || 'Error'; $('msg').className = 'msg error';
+    }
+  }catch(e){
+    $('msg').textContent = 'Sin conexión. Probá de nuevo.'; $('msg').className = 'msg error';
+  }
+  pin = ''; pintarPin(); enviando = false;
+}
+
+function mostrarConfirmacion(r, foto){
+  $('foto').style.display = foto ? 'block' : 'none';
+  $('foto').src = foto || '';
+  $('ovNombre').textContent = (r.tipo === 'Entrada' ? 'Hola ' : 'Chau ') + r.nombre + '!!';
+  $('ovDetalle').textContent = r.tipo + ' registrada a las ' + r.hora;
+  $('overlay').classList.add('mostrar');
+  setTimeout(()=>{ $('overlay').classList.remove('mostrar'); $('foto').src=''; }, 3500);
+}
+
+/* ---- Reportes ---- */
+$('irReportes').onclick = ()=>{ $('clave').value=''; $('msgClave').textContent=''; $('modalClave').classList.add('mostrar'); $('clave').focus(); };
+$('cancelar').onclick = ()=> { if (!MODO_REP) $('modalClave').classList.remove('mostrar'); else $('clave').value=''; };
+$('clave').addEventListener('keydown', e=>{ if(e.key==='Enter') $('entrar').click(); });
+$('entrar').onclick = async ()=>{
+  const c = $('clave').value;
+  $('msgClave').textContent = 'Verificando…';
+  try{
+    const r = await api({accion:'login',clave:c});
+    if (!r.ok){ $('msgClave').textContent = r.error || 'Contraseña incorrecta'; return; }
+    clave = c;
+    $('modalClave').classList.remove('mostrar');
+    apagarCamara();
+    $('pMarcar').classList.remove('activa'); $('pReportes').classList.add('activa');
+    const hoy = new Date();
+    $('mes').value = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0');
+    cargarReporte();
+  }catch(e){ $('msgClave').textContent = 'Sin conexión'; }
+};
+$('volver').onclick = ()=>{
+  clave = ''; $('reporte').innerHTML = '';
+  $('pReportes').classList.remove('activa'); $('pMarcar').classList.add('activa');
+  prenderCamara();
+};
+$('verReporte').onclick = cargarReporte;
+
+/* Modo reportes (celular de Ana Laura): entra directo a la contraseña */
+if (MODO_REP){
+  $('pMarcar').classList.remove('activa');
+  $('volver').style.display = 'none';
+  $('cancelar').textContent = 'Borrar';
+  $('irReportes').click();
+}
+
+const fmt = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0') + ' h';
+const fCorta = f => f.slice(8,10) + '/' + f.slice(5,7);
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function cargarReporte(){
+  const [anio, mes] = $('mes').value.split('-');
+  if (!anio) return;
+  $('reporte').innerHTML = '<div class="cargando">Cargando…</div>';
+  try{
+    const r = await api({accion:'reporte',clave,anio,mes});
+    if (!r.ok){ $('reporte').innerHTML = '<div class="cargando">'+esc(r.error)+'</div>'; return; }
+    nombres = r.reporte.empleadas.map(e=>e.nombre);
+    $('reporte').innerHTML = r.reporte.empleadas.map(tarjeta).join('');
+  }catch(e){ $('reporte').innerHTML = '<div class="cargando">Sin conexión</div>'; }
+}
+
+/* ---- Agregar marca a mano ---- */
+let nombres = [];
+$('abrirAgregar').onclick = ()=>{
+  const hoy = new Date();
+  $('amNombre').innerHTML = nombres.map(n=>`<option>${esc(n)}</option>`).join('');
+  $('amFecha').value = hoy.getFullYear()+'-'+String(hoy.getMonth()+1).padStart(2,'0')+'-'+String(hoy.getDate()).padStart(2,'0');
+  $('amHora').value = '';
+  $('msgAgregar').textContent = '';
+  $('modalAgregar').classList.add('mostrar');
+};
+$('cancelarAgregar').onclick = ()=> $('modalAgregar').classList.remove('mostrar');
+$('guardarMarca').onclick = async ()=>{
+  const datos = {accion:'agregarMarca', clave, nombre:$('amNombre').value, fecha:$('amFecha').value, hora:$('amHora').value, tipo:$('amTipo').value};
+  if (!datos.nombre || !datos.fecha || !datos.hora){ $('msgAgregar').textContent = 'Completá todos los datos'; return; }
+  $('msgAgregar').textContent = 'Guardando…';
+  try{
+    const r = await api(datos);
+    if (!r.ok){ $('msgAgregar').textContent = r.error || 'Error'; return; }
+    $('modalAgregar').classList.remove('mostrar');
+    $('mes').value = datos.fecha.slice(0,7);
+    cargarReporte();
+  }catch(e){ $('msgAgregar').textContent = 'Sin conexión'; }
+};
+
+function tarjeta(e){
+  let k = `<div class="kpi"><b>${e.diasTrabajados}</b><span>Días trabajados</span></div>
+           <div class="kpi"><b>${fmt(e.totalMin)}</b><span>Horas trabajadas</span></div>`;
+  if (e.tipo === 'FIJO'){
+    k += `<div class="kpi"><b>${fmt(e.extraMin)}</b><span>Horas extra</span></div>
+          <div class="kpi"><b>${e.faltas}</b><span>Faltas</span></div>
+          <div class="kpi"><b>${e.tardes}</b><span>Llegadas tarde</span></div>`;
+  }
+  if (e.incompletos) k += `<div class="kpi"><b>${e.incompletos}</b><span>Sin marcar salida</span></div>`;
+  const filas = e.dias.map(d=>`<tr class="${d.nota==='Falta'?'falta':''}">
+      <td>${d.dia} ${fCorta(d.fecha)}</td>
+      <td>${d.marcas.length ? d.marcas.join(' – ') : '—'}</td>
+      <td>${d.marcas.length ? fmt(d.min) : '—'}</td>
+      <td class="nota">${esc(d.nota||'')}</td></tr>`).join('')
+    || '<tr><td colspan="4">Sin marcas en el mes</td></tr>';
+  return `<div class="tarjeta">
+    <h3>${esc(e.nombre)}</h3>
+    <div class="tipo">${e.tipo === 'FIJO' ? 'Horario fijo' : 'Por hora'}</div>
+    <div class="kpis">${k}</div>
+    <table><tr><th>Día</th><th>Marcas</th><th>Horas</th><th>Notas</th></tr>${filas}</table>
+  </div>`;
+}
+</script>
+</body>
+</html>
