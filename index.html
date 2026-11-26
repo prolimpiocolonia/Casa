@@ -7,7 +7,11 @@
 <meta name="theme-color" content="#0f766e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Reloj Casa">
-<link rel="manifest" href="manifest.json">
+<script>
+  var MODO_REP = new URLSearchParams(location.search).get('modo') === 'reportes';
+  document.write('<link rel="manifest" href="' + (MODO_REP ? 'manifest-reportes.json' : 'manifest.json') + '">');
+  if (MODO_REP) document.title = 'Reportes Casa';
+</script>
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <style>
@@ -159,10 +163,10 @@ function sacarFoto(){
   c.getContext('2d').drawImage(v,0,0);
   return c.toDataURL('image/jpeg',0.6); // queda solo en pantalla
 }
-prenderCamara();
+if (!MODO_REP) prenderCamara();
 document.addEventListener('visibilitychange',()=>{
   if (document.hidden) apagarCamara();
-  else if ($('pMarcar').classList.contains('activa')) prenderCamara();
+  else if (!MODO_REP && $('pMarcar').classList.contains('activa')) prenderCamara();
 });
 
 /* Mantener la pantalla prendida en la tablet (si el navegador lo permite) */
@@ -218,7 +222,7 @@ function mostrarConfirmacion(r, foto){
 
 /* ---- Reportes ---- */
 $('irReportes').onclick = ()=>{ $('clave').value=''; $('msgClave').textContent=''; $('modalClave').classList.add('mostrar'); $('clave').focus(); };
-$('cancelar').onclick = ()=> $('modalClave').classList.remove('mostrar');
+$('cancelar').onclick = ()=> { if (!MODO_REP) $('modalClave').classList.remove('mostrar'); else $('clave').value=''; };
 $('clave').addEventListener('keydown', e=>{ if(e.key==='Enter') $('entrar').click(); });
 $('entrar').onclick = async ()=>{
   const c = $('clave').value;
@@ -241,6 +245,14 @@ $('volver').onclick = ()=>{
   prenderCamara();
 };
 $('verReporte').onclick = cargarReporte;
+
+/* Modo reportes (celular de Ana Laura): entra directo a la contraseña */
+if (MODO_REP){
+  $('pMarcar').classList.remove('activa');
+  $('volver').style.display = 'none';
+  $('cancelar').textContent = 'Borrar';
+  $('irReportes').click();
+}
 
 const fmt = m => Math.floor(m/60) + ':' + String(m%60).padStart(2,'0') + ' h';
 const fCorta = f => f.slice(8,10) + '/' + f.slice(5,7);
